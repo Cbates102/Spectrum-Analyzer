@@ -1,0 +1,48 @@
+nohup python train.py \
+    --data data/raddet.yaml \
+    --cfg models/resnet18.yaml \
+    --imgsz 512 \
+    --epochs 200 \
+    --save-period 50 \
+    --batch-size 64 \
+    --workers 20 \
+    --cache ram \
+    --device 0 \
+    > /home/ubuntu/RadDet/ems-yolo/logs/train_resume_1.log 2>&1 &
+
+
+# Resume and continue for more epochs
+nohup python train.py \
+    --resume runs/train/exp28/weights/last.pt \
+    --data data/raddet.yaml \
+    --cfg models/resnet18.yaml \
+    --imgsz 512 \
+    --epochs 300 \
+    --save-period 10 \
+    --batch-size 64 \
+    --workers 20 \
+    --cache ram \
+    --device 0 \
+    > /home/ubuntu/RadDet/ems-yolo/logs/train_resume_2.log 2>&1 &
+
+
+
+watch -n 1 nvidia-smi
+
+
+# Process all images in a folder
+python detect.py \
+    --weights /home/ubuntu/RadDet/ems-yolo/runs/train/exp28/weights/best.pt \
+    --source /home/ubuntu/RadDet/RadDet40k512HW009Tv2/images/test \
+    --imgsz 512 \
+    --save-txt \
+    --device 0 \
+    --save-img true
+
+python val.py --weights /home/ubuntu/RadDet/ems-yolo/runs/train/exp28/weights/best.pt --data data/raddet.yaml --task test
+
+scp -r -i ~/.ssh/lambda-cloud-ssh.pem ubuntu@209.20.157.250:/home/ubuntu/RadDet/ems-yolo/runs/detect/exp5 ./runs/detect/
+
+
+scp -r -i ~/.ssh/lambda-cloud-ssh.pem ubuntu@209.20.157.250:/home/ubuntu/RadDet/RadDet40k512HW009Tv2/images/test ./data/raddet_gt/
+

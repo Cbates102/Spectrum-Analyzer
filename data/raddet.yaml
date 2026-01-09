@@ -1,0 +1,19 @@
+# RadDet Dataset Configuration (512x512)
+# Dataset: https://github.com/abcxyzi/RadDet
+# Download from Kaggle: https://www.kaggle.com/datasets/raddet
+
+# Dataset root dir - adjust this path to where you extract the dataset
+path: /home/ubuntu/RadDet/RadDet40k512HW009Tv2 # root path
+
+# Train, validation, and test dataset paths (relative to path)
+train: images/train
+val: images/val
+test: images/test
+
+# Signal classes (11 classes)
+nc: 11  # number of classes
+names: ['Rect', 'Barker', 'Frank', 'P1', 'P2', 'P3', 'P4', 'Px', 'ZadoffChu', 'LFM', 'FMCW']  # class names
+
+# Note: No download field - auto-download is disabled
+# Download the dataset manually from Kaggle and extract it to the path specified above
+

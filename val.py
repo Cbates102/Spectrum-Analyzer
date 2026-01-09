@@ -15,6 +15,7 @@ from threading import Thread
 
 import numpy as np
 import torch
+import yaml
 from tqdm import tqdm
 
 FILE = Path(__file__).resolve()
@@ -28,7 +29,7 @@ get_local.activate()
 '''
 from models.common import DetectMultiBackend
 from utils.callbacks import Callbacks
-from utils.datasets_g1T import create_dataloader
+from utils.datasets import create_dataloader
 from utils.general import (LOGGER, NCOLS, box_iou, check_dataset, check_img_size, check_requirements, check_yaml,
                            coco80_to_coco91_class, colorstr, increment_path, non_max_suppression, print_args,
                            scale_coords, xywh2xyxy, xyxy2xywh)
@@ -148,7 +149,20 @@ def run(data,
     # Configure
     model.eval()
     is_coco = False
-    nc = 2  # number of classes
+    
+    # Load YAML file first if data is a string path (before determining nc)
+    if isinstance(data, str):
+        data_path = check_yaml(data)  # check YAML and get path
+        with open(data_path, 'r', errors='ignore') as f:
+            data = yaml.safe_load(f)  # load as dict
+    
+    # Get number of classes - prioritize YAML file (data dict) over model
+    if isinstance(data, dict) and 'nc' in data:
+        nc = int(data['nc'])  # number of classes from YAML file (data dict)
+    elif model is not None and hasattr(model, 'nc'):
+        nc = int(model.nc)  # number of classes from model
+    else:
+        nc = 2  # default fallback
     iouv = torch.linspace(0.5, 0.95, 10).to(device)  # iou vector for mAP@0.5:0.95
     niou = iouv.numel()
 
@@ -160,6 +174,35 @@ def run(data,
             model(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(next(model.model.parameters())))  # warmup
         pad = 0.0 if task == 'speed' else 0.5
         task = task if task in ('train', 'val', 'test') else 'val'  # path to train/val/test images
+        
+        # Create dataloader if not provided
+        if dataloader is None:
+            
+            if isinstance(data, dict):
+                path = data.get(task) or data.get('val') or data.get('test')  # path to train/val/test images
+                if path:
+                    base_path = Path(data.get('path', ''))
+                    if base_path:
+                        path = base_path / path  # prepend path
+                    else:
+                        path = Path(path)  # use path as-is if no base path
+                else:
+                    raise ValueError(f'Dataset path for task "{task}" not found in data dict')
+            else:
+                raise ValueError(f'data must be a path string or dict, got {type(data)}')
+            
+            dataloader, _ = create_dataloader(
+                str(path),
+                imgsz,
+                batch_size,
+                stride,
+                single_cls,
+                pad=pad,
+                rect=False,
+                workers=8,
+                prefix=colorstr(f'{task}: '),
+                shuffle=False
+            )
     seen = 0
     confusion_matrix = ConfusionMatrix(nc=nc)
     names = {k: v for k, v in enumerate(model.names if hasattr(model, 'names') else model.module.names)}#
@@ -173,7 +216,7 @@ def run(data,
     get_local.clear()
     '''
     pbar = tqdm(dataloader, desc=s, ncols=NCOLS, bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')  # progress bar
-    for batch_i, (im, targets, paths) in enumerate(pbar):
+    for batch_i, (im, targets, paths, shapes) in enumerate(pbar):
         #cache = get_local.cache
         t1 = time_sync()
         if pt:
@@ -182,7 +225,13 @@ def run(data,
         # im = im.half() if half else im.float()  # uint8 to fp16/32
         im = im.float()
         im /= 255  # 0 - 255 to 0.0 - 1.0   #这个变量什么意思
-        nb, timewindow, _, height, width = im.shape  # batch size, channels, height, width 384,672
+        # Handle both 4D [batch, channels, height, width] and 5D [batch, timewindow, channels, height, width] tensors
+        if len(im.shape) == 4:
+            nb, _, height, width = im.shape  # batch size, channels, height, width
+            timewindow = 1
+            # Keep as 4D - DetectMultiBackend and Model.forward now handle 4D directly
+        else:
+            nb, timewindow, _, height, width = im.shape  # batch size, timewindow, channels, height, width
         t2 = time_sync()
         dt[0] += t2 - t1
 
@@ -241,11 +290,14 @@ def run(data,
         # Plot images
         if plots and batch_i < 0:
             f = save_dir / f'val_batch{batch_i}_labels.jpg'  # labels
-            Thread(target=plot_images, aargs=(im[:,timewindow-1,:,:,:], targets, paths, f, names), daemon=True).start()
+            # Handle both 4D and 5D tensors for plotting
+            im_plot = im[:, timewindow-1, :, :, :] if len(im.shape) == 5 else im
+            Thread(target=plot_images, args=(im_plot, targets, paths, f, names), daemon=True).start()
             f = save_dir / f'val_batch{batch_i}_pred.jpg'  # predictions
-            Thread(target=plot_images, args=(im[:,timewindow-1,:,:,:], output_to_target(out), paths, f, names), daemon=True).start()
+            Thread(target=plot_images, args=(im_plot, output_to_target(out), paths, f, names), daemon=True).start()
     # Compute metrics
     stats = [np.concatenate(x, 0) for x in zip(*stats)]  # to numpy
+    ap_class = []  # Initialize ap_class
     if len(stats) and stats[0].any():
         p, r, ap, f1, ap_class = ap_per_class(*stats, plot=plots, save_dir=save_dir, names=names)
         ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
@@ -253,6 +305,7 @@ def run(data,
         nt = np.bincount(stats[3].astype(np.int64), minlength=nc)  # number of targets per class
     else:
         nt = torch.zeros(1)
+        mp, mr, map50, map = 0.0, 0.0, 0.0, 0.0  # Initialize metrics
 
     # Print results
     pf = '%20s' + '%11i' * 2 + '%11.3g' * 4  # print format
@@ -305,9 +358,16 @@ def run(data,
     if not training:
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
         LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}{s}")
-    maps = np.zeros(nc) + map
+    # Initialize maps with size large enough for all class indices
+    if len(ap_class) > 0:
+        max_class_idx = max(ap_class)
+        maps_size = max(nc, max_class_idx + 1)
+    else:
+        maps_size = nc
+    maps = np.zeros(maps_size) + map
     for i, c in enumerate(ap_class):
-        maps[c] = ap[i]
+        if c < maps_size:  # Safety check
+            maps[c] = ap[i]
     return (mp, mr, map50, map, *(loss.cpu() / len(dataloader)).tolist()), maps, t
 
 

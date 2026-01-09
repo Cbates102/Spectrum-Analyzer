@@ -20,7 +20,13 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 import yaml
-from torch.cuda import amp
+try:
+    from torch.amp import autocast, GradScaler
+    AMP_DEVICE = 'cuda'
+except ImportError:
+    # Fallback for older PyTorch versions (< 2.0)
+    from torch.cuda.amp import autocast, GradScaler
+    AMP_DEVICE = None
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import SGD, Adam, lr_scheduler
 from tqdm import tqdm
@@ -70,8 +76,9 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     last, best = w / 'last.pt', w / 'best.pt'
 
     # Hyperparameters
-    if isinstance(hyp, str):
-        with open(hyp, errors='ignore') as f:
+    if isinstance(hyp, (str, Path)):
+        hyp_path = str(hyp) if isinstance(hyp, Path) else hyp
+        with open(hyp_path, errors='ignore') as f:
             hyp = yaml.safe_load(f)  # load hyps dict
     LOGGER.info(colorstr('hyperparameters: ') + ', '.join(f'{k}={v}' for k, v in hyp.items()))
 
@@ -79,7 +86,12 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     with open(save_dir / 'hyp.yaml', 'w') as f:
         yaml.safe_dump(hyp, f, sort_keys=False)
     with open(save_dir / 'opt.yaml', 'w') as f:
-        yaml.safe_dump(vars(opt), f, sort_keys=False)
+        # Convert Path objects to strings for YAML serialization
+        opt_dict = vars(opt).copy()
+        for key, value in opt_dict.items():
+            if isinstance(value, Path):
+                opt_dict[key] = str(value)
+        yaml.safe_dump(opt_dict, f, sort_keys=False)
     data_dict = None
 
     # Loggers
@@ -112,7 +124,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     if pretrained:#false不执行这里
         with torch_distributed_zero_first(LOCAL_RANK):
             weights = attempt_download(weights)  # download if not found locally
-        ckpt = torch.load(weights, map_location=device)  # load checkpoint
+        ckpt = torch.load(weights, map_location=device, weights_only=False)  # load checkpoint
         model = Model(cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
         exclude = ['anchor'] if (cfg or hyp.get('anchors')) and not resume else []  # exclude keys
         csd = ckpt['model'].float().state_dict()  # checkpoint state_dict as FP32
@@ -188,12 +200,14 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
             ema.updates = ckpt['updates']
 
         # Epochs
-        start_epoch = ckpt['epoch'] + 1
+        checkpoint_epoch = ckpt.get('epoch', 0)
+        start_epoch = checkpoint_epoch + 1
         if resume:
-            assert start_epoch > 0, f'{weights} training to {epochs} epochs is finished, nothing to resume.'
+            LOGGER.info(f'Resuming from checkpoint at epoch {checkpoint_epoch}, starting from epoch {start_epoch}')
+            assert start_epoch < epochs, f'{weights} training to {epochs} epochs is finished (checkpoint at epoch {checkpoint_epoch}), nothing to resume. Increase --epochs to continue training.'
         if epochs < start_epoch:
-            LOGGER.info(f"{weights} has been trained for {ckpt['epoch']} epochs. Fine-tuning for {epochs} more epochs.")
-            epochs += ckpt['epoch']  # finetune additional epochs
+            LOGGER.info(f"{weights} has been trained for {checkpoint_epoch} epochs. Fine-tuning for {epochs} more epochs.")
+            epochs += checkpoint_epoch  # finetune additional epochs
 
         del ckpt, csd
 
@@ -262,13 +276,19 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     maps = np.zeros(nc)  # mAP per class
     results = (0, 0, 0, 0, 0, 0, 0)  # P, R, mAP@.5, mAP@.5-.95, val_loss(box, obj, cls)
     scheduler.last_epoch = start_epoch - 1  # do not move
-    scaler = amp.GradScaler(enabled=cuda)
+    # Use new PyTorch 2.0+ API for GradScaler
+    if AMP_DEVICE and cuda:
+        scaler = GradScaler(AMP_DEVICE, enabled=cuda)
+    else:
+        # Fallback for older PyTorch versions
+        scaler = GradScaler(enabled=cuda)
     stopper = EarlyStopping(patience=opt.patience)
     compute_loss = ComputeLoss(model)  # init loss class
     LOGGER.info(f'Image sizes {imgsz} train, {imgsz} val\n'
                 f'Using {train_loader.num_workers * WORLD_SIZE} dataloader workers\n'
                 f"Logging results to {colorstr('bold', save_dir)}\n"
                 f'Starting training for {epochs} epochs...')
+    epoch = start_epoch - 1  # Initialize epoch in case loop doesn't execute
     for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------
         model.train()
 
@@ -314,7 +334,11 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
                     imgs = nn.functional.interpolate(imgs, size=ns, mode='bilinear', align_corners=False)
 
             # Forward
-            with amp.autocast(enabled=cuda):
+            if AMP_DEVICE and cuda:
+                amp_context = autocast(AMP_DEVICE, enabled=cuda)
+            else:
+                amp_context = autocast(enabled=cuda)
+            with amp_context:
                 pred = model(imgs)  # forward
                 loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
                 if RANK != -1:
@@ -439,7 +463,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
 
 def parse_opt(known=False):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', type=str, default=ROOT / 'runs/train/exp10/weights/best.pt', help='initial weights path')
+    parser.add_argument('--weights', type=str, help='initial weights path')
     parser.add_argument('--cfg', type=str, default=ROOT / 'models/resnet10.yaml', help='model.yaml path')
     parser.add_argument('--data', type=str, default=ROOT / 'data/coco.yaml', help='dataset.yaml path')
     parser.add_argument('--hyp', type=str, default=ROOT / 'data/hyps/hyp.scratch.yaml', help='hyperparameters path')
@@ -494,9 +518,28 @@ def main(opt, callbacks=Callbacks()):
     if opt.resume and not check_wandb_resume(opt) and not opt.evolve:  # resume an interrupted run
         ckpt = opt.resume if isinstance(opt.resume, str) else get_latest_run()  # specified or most recent path
         assert os.path.isfile(ckpt), 'ERROR: --resume checkpoint does not exist'
-        with open(Path(ckpt).parent.parent / 'opt.yaml', errors='ignore') as f:
-            opt = argparse.Namespace(**yaml.safe_load(f))  # replace
+        # Save all command-line arguments (they take priority over opt.yaml)
+        cmd_line_opt = opt
+        opt_yaml_path = Path(ckpt).parent.parent / 'opt.yaml'
+        if opt_yaml_path.exists():
+            with open(opt_yaml_path, errors='ignore') as f:
+                opt_yaml = yaml.safe_load(f)
+            if opt_yaml is not None and isinstance(opt_yaml, dict):
+                opt = argparse.Namespace(**opt_yaml)  # load from yaml
+                # Override ALL attributes with command-line values (command-line takes priority)
+                for key in vars(cmd_line_opt):
+                    if hasattr(cmd_line_opt, key):
+                        setattr(opt, key, getattr(cmd_line_opt, key))
+            else:
+                LOGGER.warning(f'opt.yaml is empty or invalid, using command-line arguments only')
+                opt = cmd_line_opt
+        else:
+            LOGGER.warning(f'opt.yaml not found at {opt_yaml_path}, using command-line arguments only')
+            opt = cmd_line_opt
         opt.cfg, opt.weights, opt.resume = '', ckpt, True  # reinstate
+        # Always set save_dir to the checkpoint's parent directory (same as original training)
+        # This ensures save_dir is set even if opt.yaml doesn't have it
+        opt.save_dir = str(Path(ckpt).parent.parent)  # weights -> exp -> save_dir
         LOGGER.info(f'Resuming training from {ckpt}')
     else:
         opt.data, opt.cfg, opt.hyp, opt.weights, opt.project = \

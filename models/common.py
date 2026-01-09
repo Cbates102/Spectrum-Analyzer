@@ -636,8 +636,20 @@ class DetectMultiBackend(nn.Module):
 
     def forward(self, im, augment=False, visualize=False, val=False):#val执行这里
         #  MultiBackend inference
-        b, T, ch, h, w = im.shape  # batch, channel, height, width
+        # Handle both 4D [batch, channels, height, width] and 5D [batch, T, channels, height, width] inputs
+        if len(im.shape) == 4:
+            b, ch, h, w = im.shape  # batch, channels, height, width
+        else:
+            b, T, ch, h, w = im.shape  # batch, T, channels, height, width
+            # For 5D input, convert to 4D for non-PyTorch backends
+            if not self.pt:
+                if T == 1:
+                    im = im.squeeze(1)  # [batch, 1, channels, height, width] -> [batch, channels, height, width]
+                else:
+                    im = im[:, 0, :, :, :]  # Use first frame: [batch, T, channels, height, width] -> [batch, channels, height, width]
+        
         if self.pt:  # PyTorch
+            # Pass 4D or 5D directly to model - Model.forward will handle it
             y = self.model(im) if self.jit else self.model(im, augment=augment, visualize=visualize)
             return y if val else y[0]
         elif self.coreml:  # CoreML *.mlmodel

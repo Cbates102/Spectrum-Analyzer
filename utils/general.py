@@ -24,10 +24,21 @@ from zipfile import ZipFile
 import cv2
 import numpy as np
 import pandas as pd
-import pkg_resources as pkg
 import torch
 import torchvision
 import yaml
+from packaging import version
+from packaging.requirements import Requirement, InvalidRequirement
+try:
+    from importlib.metadata import distributions, version as get_package_version, PackageNotFoundError
+except ImportError:
+    # Python < 3.8 fallback
+    try:
+        from importlib_metadata import distributions, version as get_package_version, PackageNotFoundError
+    except ImportError:
+        # Fallback if importlib_metadata not available
+        get_package_version = None
+        PackageNotFoundError = Exception
 
 from utils.downloads import gsutil_getsize
 from utils.metrics import box_iou, fitness
@@ -249,7 +260,7 @@ def check_python(minimum='3.6.2'):
 
 def check_version(current='0.0.0', minimum='0.0.0', name='version ', pinned=False, hard=False):
     # Check version vs. required version
-    current, minimum = (pkg.parse_version(x) for x in (current, minimum))
+    current, minimum = (version.Version(x) for x in (current, minimum))
     result = (current == minimum) if pinned else (current >= minimum)  # bool
     if hard:  # assert min requirements met
         assert result, f'{name}{minimum} required by YOLOv3, but {name}{current} is currently installed'
@@ -265,15 +276,41 @@ def check_requirements(requirements=ROOT / 'requirements.txt', exclude=(), insta
     if isinstance(requirements, (str, Path)):  # requirements.txt file
         file = Path(requirements)
         assert file.exists(), f"{prefix} {file.resolve()} not found, check failed."
+        req_list = []
         with file.open() as f:
-            requirements = [f'{x.name}{x.specifier}' for x in pkg.parse_requirements(f) if x.name not in exclude]
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    try:
+                        req = Requirement(line)
+                        if req.name not in exclude:
+                            req_list.append(f'{req.name}{req.specifier}')
+                    except InvalidRequirement:
+                        # Skip invalid lines (comments, empty lines, etc.)
+                        continue
+        requirements = req_list
     else:  # list or tuple of packages
         requirements = [x for x in requirements if x not in exclude]
 
     n = 0  # number of packages updates
     for r in requirements:
         try:
-            pkg.require(r)
+            req = Requirement(r)
+            if get_package_version is None:
+                # Fallback: try to import the package directly
+                try:
+                    __import__(req.name.replace('-', '_'))
+                except ImportError:
+                    raise ValueError(f"Package {req.name} not found")
+            else:
+                installed_version = get_package_version(req.name)
+                if req.specifier:
+                    if not req.specifier.contains(installed_version):
+                        raise ValueError(f"Version {installed_version} does not satisfy {req.specifier}")
+        except (PackageNotFoundError, ValueError) as e:
+            if "not found" not in str(e):
+                raise ValueError(f"Package {req.name} not found")
+            raise
         except Exception as e:  # DistributionNotFound or VersionConflict if requirements not met
             s = f"{prefix} {r} not found and is required by YOLOv3"
             if install:
@@ -733,7 +770,7 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
 
 def strip_optimizer(f='best.pt', s=''):  # from utils.general import *; strip_optimizer()
     # Strip optimizer from 'f' to finalize training, optionally save as 's'
-    x = torch.load(f, map_location=torch.device('cpu'))
+    x = torch.load(f, map_location=torch.device('cpu'), weights_only=False)
     if x.get('ema'):
         x['model'] = x['ema']  # replace model with ema
     for k in 'optimizer', 'training_results', 'wandb_id', 'ema', 'updates':  # keys

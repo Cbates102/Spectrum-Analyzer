@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.vscode/
+.DS_Store
+data/raddet_gt/
+runs/detect/
+logs/
+.dockerignore

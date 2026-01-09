@@ -13,8 +13,13 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
-from visualizer import get_local
-get_local.activate()
+# Optional visualizer import for attention visualization
+try:
+    from visualizer import get_local
+    VISUALIZER_AVAILABLE = True
+except ImportError:
+    VISUALIZER_AVAILABLE = False
+    get_local = None
 
 import numpy as np
 from models.common import DetectMultiBackend
@@ -66,9 +71,11 @@ def run(weights=ROOT / 'yolov3.pt',  # model.pt path(s)
         hide_conf=False,  # hide confidences
         half=False,  # use FP16 half-precision inference
         dnn=False,  # use OpenCV DNN for ONNX inference
+        attention_viz=False,  # enable attention visualization and firing rate calculation
+        save_img=False,  # save inference images
         ):
     source = str(source)
-    save_img = not nosave and not source.endswith('.txt')  # save inference images
+    save_img = save_img and not nosave and not source.endswith('.txt')  # respect nosave flag and txt sources
     is_file = Path(source).suffix[1:] in (IMG_FORMATS + VID_FORMATS)
     is_url = source.lower().startswith(('rtsp://', 'rtmp://', 'http://', 'https://'))
     webcam = source.isnumeric() or source.endswith('.txt') or (is_url and not is_file)
@@ -107,7 +114,15 @@ def run(weights=ROOT / 'yolov3.pt',  # model.pt path(s)
     dt, seen = [0.0, 0.0, 0.0], 0
     FR=[]
     SZ=[]
-    get_local.clear()
+    # Initialize visualizer if attention visualization is enabled
+    if attention_viz:
+        if not VISUALIZER_AVAILABLE:
+            LOGGER.warning('Attention visualization requested but visualizer module not available. Install from https://github.com/luo3300612/Visualizer')
+            attention_viz = False
+        else:
+            get_local.activate()
+            get_local.clear()
+    
     g=0
     for path, im, im0s, vid_cap, s in dataset:
         g+=1
@@ -116,7 +131,6 @@ def run(weights=ROOT / 'yolov3.pt',  # model.pt path(s)
         t1 = time_sync()
         im = torch.from_numpy(im).to(device)#shape:[3,480,640]
 
-        cache = get_local.cache
         image = im.squeeze().permute(1,2,0).cpu().detach().numpy()
         
         im = im.half() if half else im.float()  # uint8 to fp16/32
@@ -139,43 +153,56 @@ def run(weights=ROOT / 'yolov3.pt',  # model.pt path(s)
         # Second-stage classifier (optional)
         # pred = utils.general.apply_classifier(pred, classifier_model, im, im0s)
 
-        #attention visualise
-        
-        # get_local.clear()
-        attention_name = "mem_update.forward"
-        fr=np.zeros(len(cache[attention_name]))
-        sz=np.zeros(len(cache[attention_name]))
-        for att_index in range(len(cache[attention_name])):
-            #att_map = cache[attention_name][att_index][:,0,:,:,:]
-            #att_map = np.mean(att_map,axis=0)
-            #att_map = np.mean(att_map,axis=0)
-            # visualize_grid_to_grid(save_dir,att_index,attention_name,att_map,image)
-            fr[att_index]=cache[attention_name][att_index].sum()/cache[attention_name][att_index].size
-        for att_index in range(len(cache[attention_name])):
-            #att_map = cache[attention_name][att_index][:,0,:,:,:]
-            #att_map = np.mean(att_map,axis=0)
-            #att_map = np.mean(att_map,axis=0)
-            # visualize_grid_to_grid(save_dir,att_index,attention_name,att_map,image)
-            sz[att_index]=cache[attention_name][att_index].size
-        #计算firing rate
-
-        FR.append(fr)
-        SZ.append(sz)
-        attention_name = "ChannelAttention.forward"
-        for att_index in range(len(cache[attention_name])):
-            att_map = cache[attention_name][att_index][0,0,:,:,:]
-            att_map = np.mean(att_map,axis=0)
-            # visualize_grid_to_grid(save_dir,att_index,attention_name,att_map,image)
-        attention_name = "SpatialAttention.forward"
-        for att_index in range(len(cache[attention_name])):
-            att_map = cache[attention_name][att_index][0,0,0,:,:]
-            # visualize_grid_to_grid(save_dir,att_index,attention_name,att_map,image)
-        attention_name = "CSA.forward"
-        for att_index in range(len(cache[attention_name])):
-            att_map = cache[attention_name][att_index][0,0,0,:,:]
-            # visualize_grid_to_grid(save_dir,att_index,attention_name,att_map,image)
-        
-        get_local.clear()
+        # Attention visualization and firing rate calculation (optional)
+        if attention_viz:
+            cache = get_local.cache  # Get cache AFTER inference
+            
+            # Calculate firing rate from mem_update.forward
+            attention_name = "mem_update.forward"
+            if attention_name in cache and len(cache[attention_name]) > 0:
+                fr = np.zeros(len(cache[attention_name]))
+                sz = np.zeros(len(cache[attention_name]))
+                for att_index in range(len(cache[attention_name])):
+                    #att_map = cache[attention_name][att_index][:,0,:,:,:]
+                    #att_map = np.mean(att_map,axis=0)
+                    #att_map = np.mean(att_map,axis=0)
+                    # visualize_grid_to_grid(save_dir,att_index,attention_name,att_map,image)
+                    fr[att_index] = cache[attention_name][att_index].sum() / cache[attention_name][att_index].size
+                for att_index in range(len(cache[attention_name])):
+                    #att_map = cache[attention_name][att_index][:,0,:,:,:]
+                    #att_map = np.mean(att_map,axis=0)
+                    #att_map = np.mean(att_map,axis=0)
+                    # visualize_grid_to_grid(save_dir,att_index,attention_name,att_map,image)
+                    sz[att_index] = cache[attention_name][att_index].size
+                #计算firing rate
+                FR.append(fr)
+                SZ.append(sz)
+            else:
+                LOGGER.warning(f'Attention key "{attention_name}" not found in cache. Make sure mem_update.forward is decorated with @get_local')
+            
+            # Visualize ChannelAttention
+            attention_name = "ChannelAttention.forward"
+            if attention_name in cache and len(cache[attention_name]) > 0:
+                for att_index in range(len(cache[attention_name])):
+                    att_map = cache[attention_name][att_index][0,0,:,:,:]
+                    att_map = np.mean(att_map,axis=0)
+                    # visualize_grid_to_grid(save_dir,att_index,attention_name,att_map,image)
+            
+            # Visualize SpatialAttention
+            attention_name = "SpatialAttention.forward"
+            if attention_name in cache and len(cache[attention_name]) > 0:
+                for att_index in range(len(cache[attention_name])):
+                    att_map = cache[attention_name][att_index][0,0,0,:,:]
+                    # visualize_grid_to_grid(save_dir,att_index,attention_name,att_map,image)
+            
+            # Visualize CSA
+            attention_name = "CSA.forward"
+            if attention_name in cache and len(cache[attention_name]) > 0:
+                for att_index in range(len(cache[attention_name])):
+                    att_map = cache[attention_name][att_index][0,0,0,:,:]
+                    # visualize_grid_to_grid(save_dir,att_index,attention_name,att_map,image)
+            
+            get_local.clear()
 
 
         # Process predictions
@@ -228,7 +255,6 @@ def run(weights=ROOT / 'yolov3.pt',  # model.pt path(s)
                 cv2.waitKey(1)  # 1 millisecond
 
             # Save results (image with detections)
-            save_img=False
             if save_img:
                 if dataset.mode == 'image':
                     cv2.imwrite(save_path, im0)
@@ -246,10 +272,15 @@ def run(weights=ROOT / 'yolov3.pt',  # model.pt path(s)
                             save_path += '.mp4'
                         vid_writer[i] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
                     vid_writer[i].write(im0)
-    firerate=np.array(FR)
-    size=np.array(SZ)
-    np.save('firerate10_5.npy',firerate)
-    np.save('size10_5.npy',size)
+    
+    # Save firing rate and size data if attention visualization was enabled
+    if attention_viz and len(FR) > 0:
+        firerate = np.array(FR)
+        size = np.array(SZ)
+        np.save(save_dir / 'firerate.npy', firerate)
+        np.save(save_dir / 'size.npy', size)
+        LOGGER.info(f'Firing rate and size data saved to {save_dir}')
+    
     # Print results
     t = tuple(x / seen * 1E3 for x in dt)  # speeds per image
     LOGGER.info(f'Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {(1, 3, *imgsz)}' % t)
@@ -269,12 +300,13 @@ def parse_opt():
     parser.add_argument('--conf-thres', type=float, default=0.25, help='confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.45, help='NMS IoU threshold')
     parser.add_argument('--max-det', type=int, default=1000, help='maximum detections per image')
-    parser.add_argument('--device', default='0,1,2,3,4,5,6,7', help='cuda device, i.e. 0 or 0,1,2,3,4,5,6,7 or cpu')
+    parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu (auto-detect if empty)')
     parser.add_argument('--view-img', action='store_true', help='show results')
     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
     parser.add_argument('--save-conf', action='store_true', help='save confidences in --save-txt labels')
     parser.add_argument('--save-crop', action='store_true', help='save cropped prediction boxes')
     parser.add_argument('--nosave', action='store_true', help='do not save images/videos')
+    parser.add_argument('--save-img', type=lambda x: str(x).lower() in ('true', '1', 'yes'), default=False, help='save inference images (true/false)')
     parser.add_argument('--classes', nargs='+', type=int, help='filter by class: --classes 0, or --classes 0 2 3')
     parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')
     parser.add_argument('--augment', action='store_true', help='augmented inference')
@@ -288,6 +320,7 @@ def parse_opt():
     parser.add_argument('--hide-conf', default=False, action='store_true', help='hide confidences')
     parser.add_argument('--half', action='store_true', help='use FP16 half-precision inference')
     parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
+    parser.add_argument('--attention-viz', action='store_true', help='enable attention visualization and firing rate calculation (requires visualizer module)')
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
     print_args(FILE.stem, opt)

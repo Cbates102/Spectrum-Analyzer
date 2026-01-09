@@ -1,19 +1,32 @@
 # pip install -r requirements.txt
 
 # Base ----------------------------------------
-matplotlib>=3.2.2
-numpy>=1.18.5
+matplotlib>=3.2.2,<4.0.0  # Constrain to avoid multiple version conflicts
+numpy>=1.18.5,<1.24.0
 opencv-python>=4.1.2
 Pillow>=7.1.2
 PyYAML>=5.3.1
 requests>=2.23.0
 scipy>=1.4.1
-#torch>=1.7.0
-#torchvision>=0.8.1
+packaging>=20.0  # Required for version parsing (replaces pkg_resources)
+# PyTorch with CUDA support
+# IMPORTANT: Install PyTorch separately with CUDA support for H100 (sm_90) compatibility:
+#   For H100 (sm_90) - RECOMMENDED: PyTorch 2.0+ with CUDA 11.8+
+#     pip install torch>=2.0.0+cu118 torchvision>=0.15.0+cu118 --extra-index-url https://download.pytorch.org/whl/cu118
+#   For H100 (sm_90) - Alternative: PyTorch 2.0+ with CUDA 12.1+ (newer, better performance)
+#     pip install torch>=2.0.0+cu121 torchvision>=0.15.0+cu121 --extra-index-url https://download.pytorch.org/whl/cu121
+#   Legacy versions (NOT recommended for H100):
+#     For CUDA 11.3: pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
+#     For CUDA 11.7: pip install torch==1.13.1+cu117 torchvision==0.14.1+cu117 --extra-index-url https://download.pytorch.org/whl/cu117
+# Note: Standard pip install may install CPU-only versions
+# WARNING: PyTorch < 2.0 does NOT support H100 (sm_90) - upgrade required for optimal H100 performance
+torch>=2.0.0
+torchvision>=0.15.0
 tqdm>=4.41.0
 
 # Logging -------------------------------------
-tensorboard>=2.4.1
+tensorboard>=2.4.1,<2.15.0
+protobuf<4.0.0
 wandb
 
 # Plotting ------------------------------------
@@ -34,3 +47,7 @@ seaborn>=0.11.0
 # pycocotools>=2.0  # COCO mAP
 # roboflow
 thop  # FLOPs computation
+
+# Dependency conflict fixes -------------------
+platformdirs>=2.0,<3.0  # Required by virtualenv
+argcomplete>=1.9.4  # Required by pipx

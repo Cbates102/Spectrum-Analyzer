@@ -115,7 +115,7 @@ class Model(nn.Module):
         if isinstance(m, Detect):
             s = 256  # 2x min stride
             m.inplace = self.inplace
-            m.stride = torch.tensor([s / x.shape[-2] for x in self.forward(torch.zeros(1,time_window, ch, s, s))])  # forward
+            m.stride = torch.tensor([s / x.shape[-2] for x in self.forward(torch.zeros(1, ch, s, s))])  # forward
             m.anchors /= m.stride.view(-1, 1, 1)
             check_anchor_order(m)
             self.stride = m.stride
@@ -127,6 +127,15 @@ class Model(nn.Module):
         LOGGER.info('')
 
     def forward(self, x, augment=False, profile=False, visualize=False):
+        # Handle both 4D [batch, channels, height, width] and 5D [batch, T, channels, height, width] inputs
+        if len(x.shape) == 5:
+            # If 5D, extract a single frame (use first frame if T > 1, or squeeze if T = 1)
+            if x.size(1) == 1:
+                x = x.squeeze(1)  # [batch, 1, channels, height, width] -> [batch, channels, height, width]
+            else:
+                x = x[:, 0, :, :, :]  # Use first frame: [batch, T, channels, height, width] -> [batch, channels, height, width]
+        
+        # Now x is 4D [batch, channels, height, width], duplicate it for time_window
         input = torch.zeros(time_window, x.size()[0], x.size()[1], x.size()[2], x.size()[3], device=x.device)
         for i in range(time_window):
             input[i] = x
