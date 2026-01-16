@@ -2,7 +2,7 @@
 
 # Sync Traffic Monitoring repository to VM with temporal-aware changes
 
-VM_IP="209.20.156.138"
+VM_IP="209.20.159.198"
 VM_USER="ubuntu"
 SSH_KEY="~/.ssh/lambda-cloud-ssh.pem"
 REMOTE_PATH="/home/ubuntu/RadDet/ems-yolo"
@@ -33,6 +33,7 @@ rsync -avz --update \
   --exclude 'runs/study' \
   --exclude 'runs/logs' \
   --exclude 'runs/results' \
+  --exclude 'quantized_models' \
   -e "ssh -i $SSH_KEY" \
   $LOCAL_PATH/ \
   $VM_USER@$VM_IP:$REMOTE_PATH/

@@ -46,3 +46,31 @@ scp -r -i ~/.ssh/lambda-cloud-ssh.pem ubuntu@209.20.157.250:/home/ubuntu/RadDet/
 
 scp -r -i ~/.ssh/lambda-cloud-ssh.pem ubuntu@209.20.157.250:/home/ubuntu/RadDet/RadDet40k512HW009Tv2/images/test ./data/raddet_gt/
 
+python convert_to_binary_spiking.py \
+    --weights runs/train/exp28/weights/last.pt \
+    --output arch/forward_pass_epoch300_model_binary.pt \
+    --diagram arch/forward_pass_epoch300_architecture_diagram.txt \
+    --device cuda \
+    --data data/raddet.yaml
+
+
+scp -r -i ~/.ssh/lambda-cloud-ssh.pem ubuntu@209.20.156.138:/home/ubuntu/RadDet/ems-yolo/runs/train/exp28 ./runs/train/
+
+
+scp -r -i ~/.ssh/lambda-cloud-ssh.pem ubuntu@209.20.156.138:/home/ubuntu/RadDet/ems-yolo/arch ./runs/train/exp28
+
+scp -r -i ~/.ssh/lambda-cloud-ssh.pem ubuntu@209.20.159.198:/home/ubuntu/RadDet/ems-yolo/quantized_models ./
+
+
+# Use more batches for better accuracy
+python quantize_model.py \
+    --weights /home/ubuntu/RadDet/ems-yolo/arch/epoch_300_model_binary.pt \
+    --quant-type static_int8 \
+    --data data/raddet.yaml \
+    --num-calib-batches 50 \
+    --output quantized_models/
+
+python count_layers.py \
+  --weights arch/epoch_300_model_binary.pt \
+  --cfg models/resnet18.yaml \
+  --data data/raddet.yaml

@@ -91,7 +91,11 @@ def attempt_load(weights, map_location=None, inplace=True, fuse=False):
     model = Ensemble()
     for w in weights if isinstance(weights, list) else [weights]:
         ckpt = torch.load(attempt_download(w), map_location=map_location, weights_only=False)  # load
-        ckpt = (ckpt['ema'] or ckpt['model']).float()  # FP32 model
+        # Handle missing 'ema' key - use 'model' if 'ema' doesn't exist
+        ckpt_model = ckpt.get('ema') or ckpt.get('model')
+        if ckpt_model is None:
+            raise ValueError("Checkpoint must contain 'model' or 'ema' key")
+        ckpt = ckpt_model.float()  # FP32 model
         model.append(ckpt.fuse().eval() if fuse else ckpt.eval())  # fused or un-fused model in eval mode
 
     # Compatibility updates

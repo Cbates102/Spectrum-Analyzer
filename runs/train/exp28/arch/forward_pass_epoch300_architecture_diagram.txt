@@ -1,0 +1,854 @@
+====================================================================================================
+EMS-YOLO MODEL ARCHITECTURE
+====================================================================================================
+
+GLOBAL PARAMETERS:
+  - Time Window (T): 5
+  - Threshold: Unknown (not found in checkpoint)
+  - Decay: Unknown (not found in checkpoint)
+  - Lens (approximation parameter): Unknown (not found in checkpoint)
+  - Number of Classes: 11
+  - Input Channels: 3
+  - Activation: Binary Spiking (converted from SiLU)
+
+====================================================================================================
+LAYER-BY-LAYER DECOMPOSITION
+====================================================================================================
+
+[Layer 0] Sequential
+  Components:
+    └─ Convolution
+  [Layer 1] Conv_1
+    Name: model.0
+    Parameters: in_channels=3, out_channels=64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), groups=1
+    Components:
+      ├─ Snn_Conv2d →
+      └─ batch_norm_2d
+
+    [Layer 2] Snn_Conv2d
+      Name: model.0.conv
+      Parameters: in_channels=3, out_channels=64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3)
+      Components:
+        └─ Convolution
+    [Layer 3] batch_norm_2d
+      Name: model.0.bn
+      Components:
+        └─ Batch Normalization
+      [Layer 4] BatchNorm3d1
+        Name: model.0.bn.bn
+        Components:
+          └─ Batch Normalization
+  [Layer 5] BasicBlock_2
+    Name: model.1
+    Parameters: in_channels=64, out_channels=64
+    Components:
+      Residual Path:
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        ├─ batch_norm_2d →
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        └─ batch_norm_2d1 →
+      Shortcut Path:
+        (Triggered by: stride=2 (downsampling))
+        ├─ MaxPool3d (shortcut) →
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (1×1, shortcut) →
+        └─ batch_norm_2d (shortcut) →
+      └─ Merge: Element-wise Adder (residual)
+
+    [Layer 6] Sequential
+      Name: model.1.residual_function
+      Components:
+        └─ Convolution
+      [Layer 7] mem_update
+        Name: model.1.residual_function.0
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 8] Snn_Conv2d
+        Name: model.1.residual_function.1
+        Parameters: in_channels=64, out_channels=64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 9] batch_norm_2d
+        Name: model.1.residual_function.2
+        Components:
+          └─ Batch Normalization
+        [Layer 10] BatchNorm3d1
+          Name: model.1.residual_function.2.bn
+          Components:
+            └─ Batch Normalization
+      [Layer 11] mem_update
+        Name: model.1.residual_function.3
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 12] Snn_Conv2d
+        Name: model.1.residual_function.4
+        Parameters: in_channels=64, out_channels=64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 13] batch_norm_2d1
+        Name: model.1.residual_function.5
+        Components:
+          └─ Batch Normalization
+        [Layer 14] BatchNorm3d2
+          Name: model.1.residual_function.5.bn
+          Components:
+            └─ Batch Normalization
+    [Layer 15] Sequential
+      Name: model.1.shortcut
+      Components:
+        └─ Convolution
+      [Layer 16] mem_update
+        Name: model.1.shortcut.1
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 17] Snn_Conv2d
+        Name: model.1.shortcut.2
+        Parameters: in_channels=64, out_channels=64, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)
+        Components:
+          └─ Convolution
+      [Layer 18] batch_norm_2d
+        Name: model.1.shortcut.3
+        Components:
+          └─ Batch Normalization
+        [Layer 19] BatchNorm3d1
+          Name: model.1.shortcut.3.bn
+          Components:
+            └─ Batch Normalization
+  [Layer 20] BasicBlock_2
+    Name: model.2
+    Parameters: in_channels=64, out_channels=64
+    Components:
+      Residual Path:
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        ├─ batch_norm_2d →
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        └─ batch_norm_2d1 →
+      Shortcut Path: (Identity)
+        (No shortcut needed: stride=1 AND channels match)
+      └─ Merge: Element-wise Adder (residual)
+
+    [Layer 21] Sequential
+      Name: model.2.residual_function
+      Components:
+        └─ Convolution
+      [Layer 22] mem_update
+        Name: model.2.residual_function.0
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 23] Snn_Conv2d
+        Name: model.2.residual_function.1
+        Parameters: in_channels=64, out_channels=64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 24] batch_norm_2d
+        Name: model.2.residual_function.2
+        Components:
+          └─ Batch Normalization
+        [Layer 25] BatchNorm3d1
+          Name: model.2.residual_function.2.bn
+          Components:
+            └─ Batch Normalization
+      [Layer 26] mem_update
+        Name: model.2.residual_function.3
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 27] Snn_Conv2d
+        Name: model.2.residual_function.4
+        Parameters: in_channels=64, out_channels=64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 28] batch_norm_2d1
+        Name: model.2.residual_function.5
+        Components:
+          └─ Batch Normalization
+        [Layer 29] BatchNorm3d2
+          Name: model.2.residual_function.5.bn
+          Components:
+            └─ Batch Normalization
+    [Layer 30] Sequential
+      Name: model.2.shortcut
+  [Layer 31] BasicBlock_2
+    Name: model.3
+    Parameters: in_channels=64, out_channels=128
+    Components:
+      Residual Path:
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        ├─ batch_norm_2d →
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        └─ batch_norm_2d1 →
+      Shortcut Path:
+        (Triggered by: stride=2 (downsampling) OR channels 64→128 (dimension mismatch))
+        ├─ MaxPool3d (shortcut) →
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (1×1, shortcut) →
+        └─ batch_norm_2d (shortcut) →
+      └─ Merge: Element-wise Adder (residual)
+
+    [Layer 32] Sequential
+      Name: model.3.residual_function
+      Components:
+        └─ Convolution
+      [Layer 33] mem_update
+        Name: model.3.residual_function.0
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 34] Snn_Conv2d
+        Name: model.3.residual_function.1
+        Parameters: in_channels=64, out_channels=128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 35] batch_norm_2d
+        Name: model.3.residual_function.2
+        Components:
+          └─ Batch Normalization
+        [Layer 36] BatchNorm3d1
+          Name: model.3.residual_function.2.bn
+          Components:
+            └─ Batch Normalization
+      [Layer 37] mem_update
+        Name: model.3.residual_function.3
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 38] Snn_Conv2d
+        Name: model.3.residual_function.4
+        Parameters: in_channels=128, out_channels=128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 39] batch_norm_2d1
+        Name: model.3.residual_function.5
+        Components:
+          └─ Batch Normalization
+        [Layer 40] BatchNorm3d2
+          Name: model.3.residual_function.5.bn
+          Components:
+            └─ Batch Normalization
+    [Layer 41] Sequential
+      Name: model.3.shortcut
+      Components:
+        └─ Convolution
+      [Layer 42] mem_update
+        Name: model.3.shortcut.1
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 43] Snn_Conv2d
+        Name: model.3.shortcut.2
+        Parameters: in_channels=64, out_channels=128, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)
+        Components:
+          └─ Convolution
+      [Layer 44] batch_norm_2d
+        Name: model.3.shortcut.3
+        Components:
+          └─ Batch Normalization
+        [Layer 45] BatchNorm3d1
+          Name: model.3.shortcut.3.bn
+          Components:
+            └─ Batch Normalization
+  [Layer 46] BasicBlock_2
+    Name: model.4
+    Parameters: in_channels=128, out_channels=128
+    Components:
+      Residual Path:
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        ├─ batch_norm_2d →
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        └─ batch_norm_2d1 →
+      Shortcut Path: (Identity)
+        (No shortcut needed: stride=1 AND channels match)
+      └─ Merge: Element-wise Adder (residual)
+
+    [Layer 47] Sequential
+      Name: model.4.residual_function
+      Components:
+        └─ Convolution
+      [Layer 48] mem_update
+        Name: model.4.residual_function.0
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 49] Snn_Conv2d
+        Name: model.4.residual_function.1
+        Parameters: in_channels=128, out_channels=128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 50] batch_norm_2d
+        Name: model.4.residual_function.2
+        Components:
+          └─ Batch Normalization
+        [Layer 51] BatchNorm3d1
+          Name: model.4.residual_function.2.bn
+          Components:
+            └─ Batch Normalization
+      [Layer 52] mem_update
+        Name: model.4.residual_function.3
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 53] Snn_Conv2d
+        Name: model.4.residual_function.4
+        Parameters: in_channels=128, out_channels=128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 54] batch_norm_2d1
+        Name: model.4.residual_function.5
+        Components:
+          └─ Batch Normalization
+        [Layer 55] BatchNorm3d2
+          Name: model.4.residual_function.5.bn
+          Components:
+            └─ Batch Normalization
+    [Layer 56] Sequential
+      Name: model.4.shortcut
+  [Layer 57] BasicBlock_2
+    Name: model.5
+    Parameters: in_channels=128, out_channels=256
+    Components:
+      Residual Path:
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        ├─ batch_norm_2d →
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        └─ batch_norm_2d1 →
+      Shortcut Path:
+        (Triggered by: stride=2 (downsampling) OR channels 128→256 (dimension mismatch))
+        ├─ MaxPool3d (shortcut) →
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (1×1, shortcut) →
+        └─ batch_norm_2d (shortcut) →
+      └─ Merge: Element-wise Adder (residual)
+
+    [Layer 58] Sequential
+      Name: model.5.residual_function
+      Components:
+        └─ Convolution
+      [Layer 59] mem_update
+        Name: model.5.residual_function.0
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 60] Snn_Conv2d
+        Name: model.5.residual_function.1
+        Parameters: in_channels=128, out_channels=256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 61] batch_norm_2d
+        Name: model.5.residual_function.2
+        Components:
+          └─ Batch Normalization
+        [Layer 62] BatchNorm3d1
+          Name: model.5.residual_function.2.bn
+          Components:
+            └─ Batch Normalization
+      [Layer 63] mem_update
+        Name: model.5.residual_function.3
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 64] Snn_Conv2d
+        Name: model.5.residual_function.4
+        Parameters: in_channels=256, out_channels=256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 65] batch_norm_2d1
+        Name: model.5.residual_function.5
+        Components:
+          └─ Batch Normalization
+        [Layer 66] BatchNorm3d2
+          Name: model.5.residual_function.5.bn
+          Components:
+            └─ Batch Normalization
+    [Layer 67] Sequential
+      Name: model.5.shortcut
+      Components:
+        └─ Convolution
+      [Layer 68] mem_update
+        Name: model.5.shortcut.1
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 69] Snn_Conv2d
+        Name: model.5.shortcut.2
+        Parameters: in_channels=128, out_channels=256, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)
+        Components:
+          └─ Convolution
+      [Layer 70] batch_norm_2d
+        Name: model.5.shortcut.3
+        Components:
+          └─ Batch Normalization
+        [Layer 71] BatchNorm3d1
+          Name: model.5.shortcut.3.bn
+          Components:
+            └─ Batch Normalization
+  [Layer 72] BasicBlock_2
+    Name: model.6
+    Parameters: in_channels=256, out_channels=256
+    Components:
+      Residual Path:
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        ├─ batch_norm_2d →
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        └─ batch_norm_2d1 →
+      Shortcut Path: (Identity)
+        (No shortcut needed: stride=1 AND channels match)
+      └─ Merge: Element-wise Adder (residual)
+
+    [Layer 73] Sequential
+      Name: model.6.residual_function
+      Components:
+        └─ Convolution
+      [Layer 74] mem_update
+        Name: model.6.residual_function.0
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 75] Snn_Conv2d
+        Name: model.6.residual_function.1
+        Parameters: in_channels=256, out_channels=256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 76] batch_norm_2d
+        Name: model.6.residual_function.2
+        Components:
+          └─ Batch Normalization
+        [Layer 77] BatchNorm3d1
+          Name: model.6.residual_function.2.bn
+          Components:
+            └─ Batch Normalization
+      [Layer 78] mem_update
+        Name: model.6.residual_function.3
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 79] Snn_Conv2d
+        Name: model.6.residual_function.4
+        Parameters: in_channels=256, out_channels=256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 80] batch_norm_2d1
+        Name: model.6.residual_function.5
+        Components:
+          └─ Batch Normalization
+        [Layer 81] BatchNorm3d2
+          Name: model.6.residual_function.5.bn
+          Components:
+            └─ Batch Normalization
+    [Layer 82] Sequential
+      Name: model.6.shortcut
+  [Layer 83] BasicBlock_2
+    Name: model.7
+    Parameters: in_channels=256, out_channels=512
+    Components:
+      Residual Path:
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        ├─ batch_norm_2d →
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        └─ batch_norm_2d1 →
+      Shortcut Path:
+        (Triggered by: stride=2 (downsampling) OR channels 256→512 (dimension mismatch))
+        ├─ MaxPool3d (shortcut) →
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (1×1, shortcut) →
+        └─ batch_norm_2d (shortcut) →
+      └─ Merge: Element-wise Adder (residual)
+
+    [Layer 84] Sequential
+      Name: model.7.residual_function
+      Components:
+        └─ Convolution
+      [Layer 85] mem_update
+        Name: model.7.residual_function.0
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 86] Snn_Conv2d
+        Name: model.7.residual_function.1
+        Parameters: in_channels=256, out_channels=512, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 87] batch_norm_2d
+        Name: model.7.residual_function.2
+        Components:
+          └─ Batch Normalization
+        [Layer 88] BatchNorm3d1
+          Name: model.7.residual_function.2.bn
+          Components:
+            └─ Batch Normalization
+      [Layer 89] mem_update
+        Name: model.7.residual_function.3
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 90] Snn_Conv2d
+        Name: model.7.residual_function.4
+        Parameters: in_channels=512, out_channels=512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 91] batch_norm_2d1
+        Name: model.7.residual_function.5
+        Components:
+          └─ Batch Normalization
+        [Layer 92] BatchNorm3d2
+          Name: model.7.residual_function.5.bn
+          Components:
+            └─ Batch Normalization
+    [Layer 93] Sequential
+      Name: model.7.shortcut
+      Components:
+        └─ Convolution
+      [Layer 94] mem_update
+        Name: model.7.shortcut.1
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 95] Snn_Conv2d
+        Name: model.7.shortcut.2
+        Parameters: in_channels=256, out_channels=512, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)
+        Components:
+          └─ Convolution
+      [Layer 96] batch_norm_2d
+        Name: model.7.shortcut.3
+        Components:
+          └─ Batch Normalization
+        [Layer 97] BatchNorm3d1
+          Name: model.7.shortcut.3.bn
+          Components:
+            └─ Batch Normalization
+  [Layer 98] BasicBlock_2
+    Name: model.8
+    Parameters: in_channels=512, out_channels=512
+    Components:
+      Residual Path:
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        ├─ batch_norm_2d →
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        └─ batch_norm_2d1 →
+      Shortcut Path: (Identity)
+        (No shortcut needed: stride=1 AND channels match)
+      └─ Merge: Element-wise Adder (residual)
+
+    [Layer 99] Sequential
+      Name: model.8.residual_function
+      Components:
+        └─ Convolution
+      [Layer 100] mem_update
+        Name: model.8.residual_function.0
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 101] Snn_Conv2d
+        Name: model.8.residual_function.1
+        Parameters: in_channels=512, out_channels=512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 102] batch_norm_2d
+        Name: model.8.residual_function.2
+        Components:
+          └─ Batch Normalization
+        [Layer 103] BatchNorm3d1
+          Name: model.8.residual_function.2.bn
+          Components:
+            └─ Batch Normalization
+      [Layer 104] mem_update
+        Name: model.8.residual_function.3
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 105] Snn_Conv2d
+        Name: model.8.residual_function.4
+        Parameters: in_channels=512, out_channels=512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 106] batch_norm_2d1
+        Name: model.8.residual_function.5
+        Components:
+          └─ Batch Normalization
+        [Layer 107] BatchNorm3d2
+          Name: model.8.residual_function.5.bn
+          Components:
+            └─ Batch Normalization
+    [Layer 108] Sequential
+      Name: model.8.shortcut
+  [Layer 109] BasicBlock_2
+    Name: model.9
+    Parameters: in_channels=512, out_channels=256
+    Components:
+      Residual Path:
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        ├─ batch_norm_2d →
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (3×3) →
+        └─ batch_norm_2d1 →
+      Shortcut Path:
+        (Triggered by: channels 512→256 (dimension mismatch))
+        ├─ MaxPool3d (shortcut) →
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (1×1, shortcut) →
+        └─ batch_norm_2d (shortcut) →
+      └─ Merge: Element-wise Adder (residual)
+
+    [Layer 110] Sequential
+      Name: model.9.residual_function
+      Components:
+        └─ Convolution
+      [Layer 111] mem_update
+        Name: model.9.residual_function.0
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 112] Snn_Conv2d
+        Name: model.9.residual_function.1
+        Parameters: in_channels=512, out_channels=256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 113] batch_norm_2d
+        Name: model.9.residual_function.2
+        Components:
+          └─ Batch Normalization
+        [Layer 114] BatchNorm3d1
+          Name: model.9.residual_function.2.bn
+          Components:
+            └─ Batch Normalization
+      [Layer 115] mem_update
+        Name: model.9.residual_function.3
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 116] Snn_Conv2d
+        Name: model.9.residual_function.4
+        Parameters: in_channels=256, out_channels=256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
+        Components:
+          └─ Convolution
+      [Layer 117] batch_norm_2d1
+        Name: model.9.residual_function.5
+        Components:
+          └─ Batch Normalization
+        [Layer 118] BatchNorm3d2
+          Name: model.9.residual_function.5.bn
+          Components:
+            └─ Batch Normalization
+    [Layer 119] Sequential
+      Name: model.9.shortcut
+      Components:
+        └─ Convolution
+      [Layer 120] mem_update
+        Name: model.9.shortcut.1
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 121] Snn_Conv2d
+        Name: model.9.shortcut.2
+        Parameters: in_channels=512, out_channels=256, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)
+        Components:
+          └─ Convolution
+      [Layer 122] batch_norm_2d
+        Name: model.9.shortcut.3
+        Components:
+          └─ Batch Normalization
+        [Layer 123] BatchNorm3d1
+          Name: model.9.shortcut.3.bn
+          Components:
+            └─ Batch Normalization
+  [Layer 124] Conv
+    Name: model.10
+    Parameters: in_channels=256, out_channels=512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=1
+    Components:
+      ├─ Snn_Conv2d →
+      ├─ batch_norm_2d →
+      └─ mem_update (binary spiking)
+
+    [Layer 125] Snn_Conv2d
+      Name: model.10.conv
+      Parameters: in_channels=256, out_channels=512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
+      Components:
+        └─ Convolution
+    [Layer 126] batch_norm_2d
+      Name: model.10.bn
+      Components:
+        └─ Batch Normalization
+      [Layer 127] BatchNorm3d1
+        Name: model.10.bn.bn
+        Components:
+          └─ Batch Normalization
+    [Layer 128] mem_update
+      Name: model.10.act
+      Components:
+        └─ mem_update (binary spiking)
+  [Layer 129] BasicBlock_2
+    Name: model.11
+    Parameters: in_channels=256, out_channels=128
+    Components:
+      Residual Path:
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (1×1) →
+        ├─ batch_norm_2d →
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (1×1) →
+        └─ batch_norm_2d1 →
+      Shortcut Path:
+        (Triggered by: channels 256→128 (dimension mismatch))
+        ├─ MaxPool3d (shortcut) →
+        ├─ mem_update (binary) →
+        ├─ Snn_Conv2d (1×1, shortcut) →
+        └─ batch_norm_2d (shortcut) →
+      └─ Merge: Element-wise Adder (residual)
+
+    [Layer 130] Sequential
+      Name: model.11.residual_function
+      Components:
+        └─ Convolution
+      [Layer 131] mem_update
+        Name: model.11.residual_function.0
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 132] Snn_Conv2d
+        Name: model.11.residual_function.1
+        Parameters: in_channels=256, out_channels=128, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)
+        Components:
+          └─ Convolution
+      [Layer 133] batch_norm_2d
+        Name: model.11.residual_function.2
+        Components:
+          └─ Batch Normalization
+        [Layer 134] BatchNorm3d1
+          Name: model.11.residual_function.2.bn
+          Components:
+            └─ Batch Normalization
+      [Layer 135] mem_update
+        Name: model.11.residual_function.3
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 136] Snn_Conv2d
+        Name: model.11.residual_function.4
+        Parameters: in_channels=128, out_channels=128, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)
+        Components:
+          └─ Convolution
+      [Layer 137] batch_norm_2d1
+        Name: model.11.residual_function.5
+        Components:
+          └─ Batch Normalization
+        [Layer 138] BatchNorm3d2
+          Name: model.11.residual_function.5.bn
+          Components:
+            └─ Batch Normalization
+    [Layer 139] Sequential
+      Name: model.11.shortcut
+      Components:
+        └─ Convolution
+      [Layer 140] mem_update
+        Name: model.11.shortcut.1
+        Components:
+          └─ mem_update (binary spiking)
+      [Layer 141] Snn_Conv2d
+        Name: model.11.shortcut.2
+        Parameters: in_channels=256, out_channels=128, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)
+        Components:
+          └─ Convolution
+      [Layer 142] batch_norm_2d
+        Name: model.11.shortcut.3
+        Components:
+          └─ Batch Normalization
+        [Layer 143] BatchNorm3d1
+          Name: model.11.shortcut.3.bn
+          Components:
+            └─ Batch Normalization
+  [Layer 144] Sample
+    Name: model.12
+    Components:
+      └─ Upsampling (Nearest Neighbor)
+  [Layer 145] Conv
+    Name: model.14
+    Parameters: in_channels=384, out_channels=256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=1
+    Components:
+      ├─ Snn_Conv2d →
+      ├─ batch_norm_2d →
+      └─ mem_update (binary spiking)
+
+    [Layer 146] Snn_Conv2d
+      Name: model.14.conv
+      Parameters: in_channels=384, out_channels=256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
+      Components:
+        └─ Convolution
+    [Layer 147] batch_norm_2d
+      Name: model.14.bn
+      Components:
+        └─ Batch Normalization
+      [Layer 148] BatchNorm3d1
+        Name: model.14.bn.bn
+        Components:
+          └─ Batch Normalization
+    [Layer 149] mem_update
+      Name: model.14.act
+      Components:
+        └─ mem_update (binary spiking)
+  [Layer 150] Detect
+    Name: model.15
+    Parameters: stride=tensor([16., 32.], device='cuda:0'), num_classes=11, num_anchors=3, num_detection_layers=2
+    Components:
+      ├─ Snn_Conv2d (1×1, per scale) →
+      ├─ Reshape/Permute →
+      ├─ Temporal Average (sum over time_window=5) →
+      ├─ Sigmoid →
+      ├─ Coordinate Transform →
+      └─ Multi-scale Concatenation
+
+    [Layer 151] ModuleList
+      Name: model.15.m
+      Components:
+        └─ Convolution
+      [Layer 152] Snn_Conv2d
+        Name: model.15.m.0
+        Parameters: in_channels=256, out_channels=48, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)
+        Components:
+          └─ Convolution
+      [Layer 153] Snn_Conv2d
+        Name: model.15.m.1
+        Parameters: in_channels=512, out_channels=48, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)
+        Components:
+          └─ Convolution
+
+====================================================================================================
+LAYER SUMMARY STATISTICS
+====================================================================================================
+
+Layer Type Counts:
+  BasicBlock_2: 10
+  BatchNorm3d1: 19
+  BatchNorm3d2: 10
+  Conv: 2
+  Conv_1: 1
+  Detect: 1
+  ModuleList: 1
+  Sample: 1
+  Sequential: 21
+  Snn_Conv2d: 31
+  batch_norm_2d: 19
+  batch_norm_2d1: 10
+  mem_update: 28
+
+====================================================================================================
+DATA FLOW
+====================================================================================================
+
+  Input Image [B, 3, H, W]
+    ↓
+  [Temporal Replication] → [5, B, 3, H, W]
+    ↓
+  [Backbone Layers] → Feature Extraction
+    ├─ Conv_1: Initial convolution
+    ├─ BasicBlock_2: Residual blocks
+    └─ Feature maps at multiple scales
+    ↓
+  [Head Layers] → Feature Fusion
+    ├─ Upsampling
+    ├─ Concatenation
+    └─ Feature refinement
+    ↓
+  [Detect Layer] → Object Detection
+    ├─ 1×1 Convolution
+    ├─ Temporal Average
+    ├─ Sigmoid
+    └─ Coordinate Transform
+    ↓
+  Output [B, N_detections, 11+5]
+
+====================================================================================================

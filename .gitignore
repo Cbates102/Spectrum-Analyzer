@@ -6,5 +6,7 @@ __pycache__/
 .DS_Store
 data/raddet_gt/
 runs/detect/
+runs/train/exp28/weights/
+quantized_models/
 logs/
 .dockerignore
