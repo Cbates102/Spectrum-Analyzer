@@ -1,4 +1,4 @@
-# EMS-YOLO: Spectrum Analyzer for Signal Detection
+# Spectrum Analyzer for Signal Detection
 
 A deep learning-based spectrum analyzer that detects and classifies radar signals from spectrograms using an enhanced YOLO object detection framework. Built on the EMS-YOLO codebase, this project detects 11 different signal types in spectrogram images.
 
