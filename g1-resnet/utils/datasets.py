@@ -288,6 +288,8 @@ class LoadStreams:
         self.stride = stride
 
         if os.path.isfile(sources):
+            if '..' in sources:
+                raise Exception('Invalid file path')
             with open(sources) as f:
                 sources = [x.strip() for x in f.read().strip().splitlines() if len(x.strip())]
         else:
@@ -399,6 +401,8 @@ class LoadImagesAndLabels(Dataset):
                     f += glob.glob(str(p / '**' / '*.*'), recursive=True)
                     # f = list(p.rglob('*.*'))  # pathlib
                 elif p.is_file():  # file
+                    if '..' in str(p):
+                        raise Exception('Invalid file path')
                     with open(p) as t:
                         t = t.read().strip().splitlines()
                         parent = str(p.parent) + os.sep
@@ -867,6 +871,7 @@ def autosplit(path='../datasets/coco128/images', weights=(0.9, 0.1, 0.0), annota
         annotated_only:  Only use images with an annotated txt file
     """
     path = Path(path)  # images dir
+    base_dir = path.parent.resolve()
     files = sorted(x for x in path.rglob('*.*') if x.suffix[1:].lower() in IMG_FORMATS)  # image files only
     n = len(files)  # number of files
     random.seed(0)  # for reproducibility
@@ -878,7 +883,12 @@ def autosplit(path='../datasets/coco128/images', weights=(0.9, 0.1, 0.0), annota
     print(f'Autosplitting images from {path}' + ', using *.txt labeled images only' * annotated_only)
     for i, img in tqdm(zip(indices, files), total=n):
         if not annotated_only or Path(img2label_paths([str(img)])[0]).exists():  # check label
-            with open(path.parent / txt[i], 'a') as f:
+            target_path = (path.parent / txt[i]).resolve()
+            try:
+                target_path.relative_to(base_dir)
+            except ValueError:
+                raise Exception('Invalid file path')
+            with open(target_path, 'a') as f:
                 f.write('./' + img.relative_to(path.parent).as_posix() + '\n')  # add image to txt file
 
 
@@ -888,6 +898,8 @@ def verify_image_label(args):
     nm, nf, ne, nc, msg, segments = 0, 0, 0, 0, '', []  # number (missing, found, empty, corrupt), message, segments
     try:
         # verify images
+        if '..' in im_file:
+            raise Exception('Invalid file path')
         im = Image.open(im_file)
         im.verify()  # PIL verify
         shape = exif_size(im)  # image size
@@ -903,6 +915,8 @@ def verify_image_label(args):
         # verify labels
         if os.path.isfile(lb_file):
             nf = 1  # label found
+            if '..' in lb_file:
+                raise Exception('Invalid file path')
             with open(lb_file) as f:
                 l = [x.split() for x in f.read().strip().splitlines() if len(x)]
                 if any([len(x) > 8 for x in l]):  # is segment
@@ -978,7 +992,10 @@ def dataset_stats(path='coco128.yaml', autodownload=False, verbose=False, profil
             cv2.imwrite(str(f_new), im)
 
     zipped, data_dir, yaml_path = unzip(Path(path))
-    with open(check_yaml(yaml_path), errors='ignore') as f:
+    yaml_path_checked = check_yaml(yaml_path)
+    if '..' in str(yaml_path_checked):
+        raise Exception('Invalid file path')
+    with open(yaml_path_checked, errors='ignore') as f:
         data = yaml.safe_load(f)  # data dict
         if zipped:
             data['path'] = data_dir  # TODO: should this be dir.resolve()?

@@ -303,6 +303,8 @@ class LoadStreams:
         self.stride = stride
 
         if os.path.isfile(sources):
+            if '..' in sources:
+                raise Exception('Invalid file path')
             with open(sources) as f:
                 sources = [x.strip() for x in f.read().strip().splitlines() if len(x.strip())]
         else:
@@ -408,6 +410,8 @@ class LoadImagesAndLabels(Dataset):
         self.T=T
         save_file_name = path+'.txt'
         f =[]
+        if '..' in save_file_name:
+            raise Exception('Invalid file path')
         with open(save_file_name) as t:
             t = t.read().strip().splitlines()
             f += [x for x in t]
@@ -625,7 +629,10 @@ def dataset_stats(path='coco128.yaml', autodownload=False, verbose=False, profil
             cv2.imwrite(str(f_new), im)
 
     zipped, data_dir, yaml_path = unzip(Path(path))
-    with open(check_yaml(yaml_path), errors='ignore') as f:
+    yaml_path_checked = check_yaml(yaml_path)
+    if '..' in str(yaml_path_checked):
+        raise Exception('Invalid file path')
+    with open(yaml_path_checked, errors='ignore') as f:
         data = yaml.safe_load(f)  # data dict
         if zipped:
             data['path'] = data_dir  # TODO: should this be dir.resolve()?

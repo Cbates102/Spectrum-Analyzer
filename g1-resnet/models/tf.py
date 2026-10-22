@@ -329,6 +329,8 @@ class TFModel:
         else:  # is *.yaml
             import yaml  # for torch hub
             self.yaml_file = Path(cfg).name
+            if '..' in cfg:
+                raise Exception('Invalid file path')
             with open(cfg) as f:
                 self.yaml = yaml.load(f, Loader=yaml.FullLoader)  # model dict
 
