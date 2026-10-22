@@ -301,6 +301,8 @@ class LoadStreams:
         self.stride = stride
 
         if os.path.isfile(sources):
+            if '..' in sources:
+                raise Exception('Invalid file path')
             with open(sources) as f:
                 sources = [x.strip() for x in f.read().strip().splitlines() if len(x.strip())]
         else:
@@ -808,6 +810,8 @@ def verify_image_label(args):
         assert (shape[0] > 9) & (shape[1] > 9), f'image size {shape} <10 pixels'
         assert im.format.lower() in IMG_FORMATS, f'invalid image format {im.format}'
         if im.format.lower() in ('jpg', 'jpeg'):
+            if '..' in im_file:
+                raise Exception('Invalid file path')
             with open(im_file, 'rb') as f:
                 f.seek(-2, 2)
                 if f.read() != b'\xff\xd9':  # corrupt JPEG
@@ -817,6 +821,8 @@ def verify_image_label(args):
         # verify labels
         if os.path.isfile(lb_file):
             nf = 1  # label found
+            if '..' in lb_file:
+                raise Exception('Invalid file path')
             with open(lb_file) as f:
                 l = [x.split() for x in f.read().strip().splitlines() if len(x)]
                 if any([len(x) > 8 for x in l]):  # is segment
@@ -892,7 +898,10 @@ def dataset_stats(path='coco128.yaml', autodownload=False, verbose=False, profil
             cv2.imwrite(str(f_new), im)
 
     zipped, data_dir, yaml_path = unzip(Path(path))
-    with open(check_yaml(yaml_path), errors='ignore') as f:
+    yaml_path_checked = check_yaml(yaml_path)
+    if '..' in str(yaml_path_checked):
+        raise Exception('Invalid file path')
+    with open(yaml_path_checked, errors='ignore') as f:
         data = yaml.safe_load(f)  # data dict
         if zipped:
             data['path'] = data_dir  # TODO: should this be dir.resolve()?

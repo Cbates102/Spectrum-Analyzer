@@ -71,6 +71,8 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
 
     # Hyperparameters
     if isinstance(hyp, str):
+        if '..' in hyp:
+            raise Exception('Invalid file path')
         with open(hyp, errors='ignore') as f:
             hyp = yaml.safe_load(f)  # load hyps dict
     LOGGER.info(colorstr('hyperparameters: ') + ', '.join(f'{k}={v}' for k, v in hyp.items()))
@@ -513,6 +515,8 @@ def main(opt, callbacks=Callbacks()):
     if opt.resume and not check_wandb_resume(opt) and not opt.evolve:  # resume an interrupted run
         ckpt = opt.resume if isinstance(opt.resume, str) else get_latest_run()  # specified or most recent path
         assert os.path.isfile(ckpt), 'ERROR: --resume checkpoint does not exist'
+        if '..' in ckpt:
+            raise Exception('Invalid file path')
         with open(Path(ckpt).parent.parent / 'opt.yaml', errors='ignore') as f:
             opt = argparse.Namespace(**yaml.safe_load(f))  # replace
         opt.cfg, opt.weights, opt.resume = '', ckpt, True  # reinstate

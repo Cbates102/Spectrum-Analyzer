@@ -374,6 +374,8 @@ def check_dataset(data, autodownload=True):
 
     # Read yaml (optional)
     if isinstance(data, (str, Path)):
+        if '..' in str(data):
+            raise Exception('Invalid file path')
         with open(data, errors='ignore') as f:
             data = yaml.safe_load(f)  # dictionary
 
@@ -795,7 +797,11 @@ def print_mutation(results, hyp, save_dir, bucket):
 
     # Log to evolve.csv
     s = '' if evolve_csv.exists() else (('%20s,' * n % keys).rstrip(',') + '\n')  # add header
-    with open(evolve_csv, 'a') as f:
+    save_dir_real = os.path.realpath(save_dir)
+    evolve_csv_real = os.path.realpath(evolve_csv)
+    if os.path.commonpath([save_dir_real, evolve_csv_real]) != save_dir_real:
+        raise Exception('Invalid file path')
+    with open(evolve_csv_real, 'a') as f:
         f.write(s + ('%20.5g,' * n % vals).rstrip(',') + '\n')
 
     # Print to screen
@@ -803,8 +809,12 @@ def print_mutation(results, hyp, save_dir, bucket):
     print(colorstr('evolve: ') + ', '.join(f'{x:20.5g}' for x in vals), end='\n\n\n')
 
     # Save yaml
-    with open(evolve_yaml, 'w') as f:
-        data = pd.read_csv(evolve_csv)
+    save_dir_real = os.path.realpath(save_dir)
+    evolve_yaml_real = os.path.realpath(evolve_yaml)
+    if os.path.commonpath([save_dir_real, evolve_yaml_real]) != save_dir_real:
+        raise Exception('Invalid file path')
+    with open(evolve_yaml_real, 'w') as f:
+        data = pd.read_csv(evolve_csv_real)
         data = data.rename(columns=lambda x: x.strip())  # strip keys
         i = np.argmax(fitness(data.values[:, :7]))  #
         f.write('# YOLOv3 Hyperparameter Evolution Results\n' +

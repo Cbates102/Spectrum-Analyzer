@@ -106,6 +106,8 @@ def count_events(filename):
     args :
         - path to a dat file
     """
+    if '..' in filename:
+        raise Exception('Invalid file path')
     with open(filename, 'rb') as f:
         bod, _, ev_size, _ = parse_header(f)
         f.seek(0, os.SEEK_END)
@@ -181,6 +183,8 @@ def write_header(filename, height=240, width=320, ev_type=0):
         raise ValueError('Coordinates value exceed maximum range in'
                          ' binary .dat file format max({:d},{:d}) vs 2^14 - 1'.format(
                              height, width))
+    if '..' in filename:
+        raise Exception('Invalid file path')
     f = open(filename, 'w')
     f.write('% Data file containing {:s} events.\n'
             '% Version 2\n'.format(EV_STRING))
